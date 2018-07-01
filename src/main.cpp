@@ -178,6 +178,7 @@ int main() {
   string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
+  auto prev_vel = 0.0;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -201,7 +202,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&prev_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -249,7 +250,7 @@ int main() {
 
             // init
             auto lane = 1;
-            auto ref_vel = 49.0 * 0.44704; // ms
+            auto max_vel = 49.0 * 0.44704; // ms
 
             // spline
             std::vector<double> ptsx;
@@ -321,11 +322,15 @@ int main() {
             auto x_prev = 0.0;
             for (int i = 1; i <= 50 - size_prev_waypts; ++i)
             {
+              auto ref_vel = prev_vel + 5 * 0.02; // a=5m/s^2
+              if (ref_vel > max_vel) ref_vel = max_vel; // limit to max vel
+
               double N = target_dist / (0.02 * ref_vel);
               double x_car = x_prev + target_x/N;
               double y_car = s(x_car);
 
               x_prev = x_car;
+              prev_vel = ref_vel;
 
               // tranform waypts from car coordinate system to global coordinate system
               auto xdiff = x_car;
