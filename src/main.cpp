@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -228,8 +229,8 @@ int main() {
           	double car_speed = j[1]["speed"];
 
           	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
+          	std::vector<double> previous_path_x = j[1]["previous_path_x"];
+          	std::vector<double> previous_path_y = j[1]["previous_path_y"];
           	// Previous path's end s and d values 
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
@@ -239,20 +240,105 @@ int main() {
 
           	json msgJson;
 
-          	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
+            // debug
+            std::cout << "x=" << car_x << 
+                        " y=" << car_y << 
+                        " yaw=" << car_yaw << 
+                        " v=" << car_speed <<
+                        "\n"; 
 
-            auto dist_inc = 0.4;
-            for (int i = 0; i<50; ++i)
+            // init
+            auto lane = 1;
+            auto ref_vel = 49.0 * 0.44704; // ms
+
+            // spline
+            std::vector<double> ptsx;
+            std::vector<double> ptsy;
+
+            // compute remaining trajectory
+            // use previous path waypoints and add remaining waypoints to sum to 50
+
+            // car ref pos refers to either:
+            // the car's position when there's no previous path
+            // the previous path's last prediction
+            auto car_ref_x = car_x;
+            auto car_ref_y = car_y;
+            auto car_ref_yaw = car_yaw;
+            auto size_prev_waypts = previous_path_x.size();
+            if (size_prev_waypts > 0)
             {
-              auto s = car_s + (i+1)*dist_inc;
-              auto d = 6;
-              auto xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              next_x_vals.push_back(xy[0]);
-              next_y_vals.push_back(xy[1]);
+              car_ref_x = previous_path_x[size_prev_waypts - 1];
+              car_ref_y = previous_path_y[size_prev_waypts - 1];
+
+              // use last two waypts to find heading
+              double car_ref_x_prev = previous_path_x[size_prev_waypts - 2];
+              double car_ref_y_prev = previous_path_y[size_prev_waypts - 2];
+              car_ref_yaw = atan2(car_ref_y - car_ref_y_prev,
+                                  car_ref_x - car_ref_x_prev);
             }
 
-            //std::cout << previous_path_x.size() << "\n";
+            ptsx.push_back(car_ref_x);
+            ptsy.push_back(car_ref_y);
+
+            
+            // get waypts with 30m spacing from car frenet coordinates
+            auto next_wp0 = getXY(car_s+30, lane*4 + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            auto next_wp1 = getXY(car_s+60, lane*4 + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            auto next_wp2 = getXY(car_s+90, lane*4 + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+            ptsx.push_back(next_wp0[0]);
+            ptsx.push_back(next_wp1[0]);
+            ptsx.push_back(next_wp2[0]);
+
+            ptsy.push_back(next_wp0[1]);
+            ptsy.push_back(next_wp1[1]);
+            ptsy.push_back(next_wp2[1]);
+
+            // tranform waypts from global coordinate system to car coordinate system
+            for (auto i = 0; i < ptsx.size(); ++i)
+            {
+              auto xdiff = ptsx[i] - car_ref_x;
+              auto ydiff = ptsy[i] - car_ref_y;
+
+              ptsx[i] = xdiff * cos(car_ref_yaw) + ydiff * sin(car_ref_yaw);
+              ptsy[i] = ydiff * cos(car_ref_yaw) - xdiff * sin(car_ref_yaw);
+            }
+              
+
+            // create spline
+            tk::spline s;
+            s.set_points(ptsx, ptsy);
+
+
+            // add previous path waypoints
+            vector<double> next_x_vals(previous_path_x);
+            vector<double> next_y_vals(previous_path_y);
+
+            auto target_x = 30.0;
+            auto target_y = s(target_x);
+            auto target_dist = distance(0,0,target_x, target_y);
+
+            auto x_prev = 0.0;
+            for (int i = 1; i <= 50 - size_prev_waypts; ++i)
+            {
+              double N = target_dist / (0.02 * ref_vel);
+              double x_car = x_prev + target_x/N;
+              double y_car = s(x_car);
+
+              x_prev = x_car;
+
+              // tranform waypts from car coordinate system to global coordinate system
+              auto xdiff = x_car;
+              auto ydiff = y_car;
+              auto x_global = xdiff * cos(-car_ref_yaw) + ydiff * sin(-car_ref_yaw);
+              auto y_global = ydiff * cos(-car_ref_yaw) - xdiff * sin(-car_ref_yaw);
+              
+              x_global += car_ref_x;
+              y_global += car_ref_y;
+
+              next_x_vals.push_back(x_global);
+              next_y_vals.push_back(y_global);              
+            }
             
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
