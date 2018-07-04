@@ -241,18 +241,12 @@ int main() {
 
           	json msgJson;
 
-            // debug
-            std::cout << "x=" << car_x << 
-                        " y=" << car_y << 
-                        " s=" << car_s << 
-                        " d=" << car_d << 
-                        " yaw=" << car_yaw << 
-                        " v=" << car_speed <<
-                        "\n"; 
 
             // init
             auto target_lane = 1;
-            auto max_vel = 49.5 * 0.44704; // ms
+            auto max_vel = 49.5 * 0.44704; // m/s
+            auto min_vel = 0.0; // m/s
+            auto acc = 5.0; // m/s^2
 
 
             // compute remaining trajectory
@@ -284,6 +278,37 @@ int main() {
 
               car_ref_s = end_path_s;
             }
+
+            // slow down if vehicle
+            // - in same target lane
+            // - in front
+            // - within buffer
+
+            for (const auto& other_veh : sensor_fusion)
+            {
+              double other_veh_vx = other_veh[3];
+              double other_veh_vy = other_veh[4];
+              double other_veh_v = distance(other_veh_vx, other_veh_vy, 0, 0);
+              double other_veh_s = other_veh[5];
+              double other_veh_d = other_veh[6];
+
+              // other vehicle is in same target lane
+              if (other_veh_d > target_lane*4 && other_veh_d < (target_lane+1)*4)
+              {
+                // project other vehicle by ego car's previous prediction
+                other_veh_s += previous_path_x.size() * 0.02 * other_veh_v;
+
+                // in front and within buffer of 30m
+                // TODO: consider s rollover
+                if (other_veh_s > car_ref_s &&  (other_veh_s - car_ref_s) < 30)
+                {
+                  // slow down by -5m/s^2 to min_vel
+                  acc = -5.0;
+                  min_vel = 25.0 * 0.44704; // ms
+                }
+              }
+            }
+
 
             // spline
             std::vector<double> ptsx;
@@ -336,8 +361,13 @@ int main() {
             auto x_prev = 0.0;
             for (int i = 1; i <= 50 - size_prev_waypts; ++i)
             {
-              auto ref_vel = prev_vel + 5 * 0.02; // a=5m/s^2
-              if (ref_vel > max_vel) ref_vel = max_vel; // limit to max vel
+              auto ref_vel = prev_vel + acc * 0.02; // a=5m/s^2
+              // limit to max vel
+              if (acc > 0 && ref_vel > max_vel)
+                ref_vel = max_vel;
+              // limit to min vel
+              if (acc < 0 && ref_vel < min_vel)
+                ref_vel = min_vel;
 
               double N = target_dist / (0.02 * ref_vel);
               double x_car = x_prev + target_x/N;
@@ -363,6 +393,19 @@ int main() {
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
+
+            // debug
+            std::cout << "x=" << car_x << 
+                        " y=" << car_y << 
+                        " s=" << car_s << 
+                        " d=" << car_d << 
+                        " yaw=" << car_yaw << 
+                        " v=" << car_speed <<
+                        " lane=" << target_lane <<
+                        " a=" << acc <<
+                        " minv=" << min_vel <<
+                        "\n"; 
+
 
           	auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
