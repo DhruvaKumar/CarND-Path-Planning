@@ -244,15 +244,11 @@ int main() {
 
 
             // init
-            // auto current_lane = 1;
             auto total_lanes = 3;
             auto max_vel = 49.5 * 0.44704; // m/s
             auto min_vel = 0.0; // m/s
             auto acc = 5.0; // m/s^2
 
-
-            // compute remaining trajectory
-            // use previous path waypoints and add remaining waypoints to sum to 50
 
             // car ref pos refers to either:
             // - the car's position when there's no previous path
@@ -282,7 +278,7 @@ int main() {
             }
 
 
-            // prediction of other vehicles
+            // ------------------ prediction of other vehicles
             auto veh_ahead = false;
             auto veh_left = false;
             auto veh_right = false;
@@ -298,33 +294,33 @@ int main() {
               // project other vehicle by ego car's previous prediction
               other_veh_s += previous_path_x.size() * 0.02 * other_veh_v;
 
-              // in front and within buffer of 30m
               // TODO: consider s rollover
-              if (other_veh_s > car_ref_s && (other_veh_s - car_ref_s) < 30)
+
+              // other vehicle is ahead by 30m and in the same lane
+              if (other_veh_s > car_ref_s && (other_veh_s - car_ref_s) < 30 &&
+                other_veh_d > current_lane*4 && other_veh_d < (current_lane+1)*4)
               {
-                // other vehicle is in the same lane
-                if (other_veh_d > current_lane*4 && other_veh_d < (current_lane+1)*4)
-                {
-                  veh_ahead = true;
-                  veh_ahead_v = other_veh_v;
-                }
-                // other vehicle to the left
-                else if (other_veh_d > (current_lane-1)*4 && other_veh_d < (current_lane)*4)
-                {
-                  veh_left = true;
-                }
-                // other vechile to the right
-                else if (other_veh_d > (current_lane+1)*4 && other_veh_d < (current_lane+2)*4)
-                {
-                  veh_right = true;
-                }
+                veh_ahead = true;
+                veh_ahead_v = other_veh_v;
+              }
+              // other vehicle to the left and within 30m
+              else if (other_veh_d > (current_lane-1)*4 && other_veh_d < (current_lane)*4 &&
+                abs(other_veh_s - car_ref_s) < 30)
+              {
+                veh_left = true;
+              }
+              // other vechile to the right and within 30m
+              else if (other_veh_d > (current_lane+1)*4 && other_veh_d < (current_lane+2)*4 &&
+                abs(other_veh_s - car_ref_s) < 30)
+              {
+                veh_right = true;
               }
             }
 
  
 
 
-            // behavioral planner
+            // ------------------  behavioral planner
 
             // if no vehicle in front, keep lane
             auto target_lane = current_lane;
@@ -362,6 +358,10 @@ int main() {
                         " minv=" << min_vel <<
                         "\n";
 
+
+            // ------------------  trajectory generation
+            // compute remaining trajectory
+            // use previous path waypoints and add remaining waypoints to sum to 50
 
             // spline
             std::vector<double> ptsx;
@@ -416,7 +416,7 @@ int main() {
             {
               auto ref_vel = prev_vel + acc * 0.02;
               // limit to max vel
-              if (acc > 0 && ref_vel > max_vel)
+              if (ref_vel > max_vel)
                 ref_vel = max_vel;
               // limit to min vel
               if (acc < 0 && ref_vel < min_vel)
@@ -443,7 +443,7 @@ int main() {
             }
             
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          	// define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
