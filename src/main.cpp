@@ -250,7 +250,7 @@ int main() {
 
             // init
             auto lane = 1;
-            auto max_vel = 49.0 * 0.44704; // ms
+            auto max_vel = 49.5 * 0.44704; // ms
 
             // spline
             std::vector<double> ptsx;
