@@ -179,6 +179,7 @@ int main() {
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
   auto prev_vel = 0.0;
+  auto current_lane = 1;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -202,7 +203,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&prev_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&current_lane,&prev_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -243,7 +244,8 @@ int main() {
 
 
             // init
-            auto target_lane = 1;
+            // auto current_lane = 1;
+            auto total_lanes = 3;
             auto max_vel = 49.5 * 0.44704; // m/s
             auto min_vel = 0.0; // m/s
             auto acc = 5.0; // m/s^2
@@ -279,11 +281,12 @@ int main() {
               car_ref_s = end_path_s;
             }
 
-            // slow down if vehicle
-            // - in same target lane
-            // - in front
-            // - within buffer
 
+            // prediction of other vehicles
+            auto veh_ahead = false;
+            auto veh_left = false;
+            auto veh_right = false;
+            auto veh_ahead_v = 15.0; // m/s
             for (const auto& other_veh : sensor_fusion)
             {
               double other_veh_vx = other_veh[3];
@@ -292,22 +295,72 @@ int main() {
               double other_veh_s = other_veh[5];
               double other_veh_d = other_veh[6];
 
-              // other vehicle is in same target lane
-              if (other_veh_d > target_lane*4 && other_veh_d < (target_lane+1)*4)
-              {
-                // project other vehicle by ego car's previous prediction
-                other_veh_s += previous_path_x.size() * 0.02 * other_veh_v;
+              // project other vehicle by ego car's previous prediction
+              other_veh_s += previous_path_x.size() * 0.02 * other_veh_v;
 
-                // in front and within buffer of 30m
-                // TODO: consider s rollover
-                if (other_veh_s > car_ref_s &&  (other_veh_s - car_ref_s) < 30)
+              // in front and within buffer of 30m
+              // TODO: consider s rollover
+              if (other_veh_s > car_ref_s && (other_veh_s - car_ref_s) < 30)
+              {
+                // other vehicle is in the same lane
+                if (other_veh_d > current_lane*4 && other_veh_d < (current_lane+1)*4)
                 {
-                  // slow down by -5m/s^2 to min_vel
-                  acc = -5.0;
-                  min_vel = 25.0 * 0.44704; // ms
+                  veh_ahead = true;
+                  veh_ahead_v = other_veh_v;
+                }
+                // other vehicle to the left
+                else if (other_veh_d > (current_lane-1)*4 && other_veh_d < (current_lane)*4)
+                {
+                  veh_left = true;
+                }
+                // other vechile to the right
+                else if (other_veh_d > (current_lane+1)*4 && other_veh_d < (current_lane+2)*4)
+                {
+                  veh_right = true;
                 }
               }
             }
+
+ 
+
+
+            // behavioral planner
+
+            // if no vehicle in front, keep lane
+            auto target_lane = current_lane;
+
+            // otherwise, let's explore our options
+            if (veh_ahead)
+            {
+              // try to go left
+              if (current_lane > 0 && !veh_left)
+              {
+                target_lane = current_lane - 1;
+              }
+
+              // try to go right
+              else if (current_lane < total_lanes - 1 && !veh_right)
+              {
+                target_lane = current_lane + 1;
+              }
+
+              // keep lane and slow down to the speed of vehicle in front
+              else
+              {
+                acc = -5.0;
+                min_vel = veh_ahead_v - 0.5;
+              }
+            }
+
+            // debug
+            std::cout << "curr_lane=" << current_lane <<
+                        " veh_f=" << veh_ahead << 
+                        " veh_l=" << veh_left << 
+                        " veh_r=" << veh_right << 
+                        " trgt_lane=" << target_lane <<
+                        " a=" << acc <<
+                        " minv=" << min_vel <<
+                        "\n";
 
 
             // spline
@@ -361,7 +414,7 @@ int main() {
             auto x_prev = 0.0;
             for (int i = 1; i <= 50 - size_prev_waypts; ++i)
             {
-              auto ref_vel = prev_vel + acc * 0.02; // a=5m/s^2
+              auto ref_vel = prev_vel + acc * 0.02;
               // limit to max vel
               if (acc > 0 && ref_vel > max_vel)
                 ref_vel = max_vel;
@@ -394,6 +447,8 @@ int main() {
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
+            current_lane = target_lane;
+
             // debug
             std::cout << "x=" << car_x << 
                         " y=" << car_y << 
@@ -401,9 +456,7 @@ int main() {
                         " d=" << car_d << 
                         " yaw=" << car_yaw << 
                         " v=" << car_speed <<
-                        " lane=" << target_lane <<
-                        " a=" << acc <<
-                        " minv=" << min_vel <<
+                        " lane=" << current_lane <<
                         "\n"; 
 
 
