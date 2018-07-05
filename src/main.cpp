@@ -309,7 +309,7 @@ int main() {
               {
                 veh_left = true;
               }
-              // other vechile to the right and within 30m
+              // other vehicle to the right and within 30m
               else if (other_veh_d > (current_lane+1)*4 && other_veh_d < (current_lane+2)*4 &&
                 abs(other_veh_s - car_ref_s) < 30)
               {
@@ -411,9 +411,11 @@ int main() {
             auto target_y = s(target_x);
             auto target_dist = distance(0,0,target_x, target_y);
 
+            // use spline to get remaining waypts
             auto x_prev = 0.0;
             for (int i = 1; i <= 50 - size_prev_waypts; ++i)
             {
+              // update velocity such that acc=+-5m/s^2
               auto ref_vel = prev_vel + acc * 0.02;
               // limit to max vel
               if (ref_vel > max_vel)
