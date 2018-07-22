@@ -1,5 +1,7 @@
 # Path planning
 
+![alt text](./results/pp.gif)
+
 The goal of the project is to plan and navigate a highway with other traffic in simulation. The speed limit is 50 mph. The rest of the traffic is driving at +-10 mph of the speed limit. The [simulator](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2) provides the car's state and states of other vehicles (retreived from localization and sensor fusion modules). We are also provided the map of the highway along with sparse reference waypoints. The objective is to drive efficiently, within the speed limit, without colliding with other vehicles. The car should not exceed a total accerleration of 10 m/s^2 and jerk greater than 10 m/s^3. This project was done as a part of Udacity's Self-Driving Car Engineer Nanodegree Program. The original repo can be found [here](https://github.com/udacity/CarND-Path-Planning-Project).
 
 ## Dependencies
@@ -87,9 +89,9 @@ The planner uses the prediction data to provide the target goal lane and acceler
 
 ## Result
 
-<!-- <a href="http://www.youtube.com/watch?feature=player_embedded&v=hj0-zy3l8v8
-" target="_blank"><img src="http://img.youtube.com/vi/hj0-zy3l8v8/0.jpg" 
-alt="mpc" width="320" height="220" border="10" /></a> -->
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=pgN-TO3Xy3I
+" target="_blank"><img src="http://img.youtube.com/vi/pgN-TO3Xy3I/0.jpg" 
+alt="mpc" width="320" height="220" border="10" /></a>
 
 
 ## Thoughts and improvement
