@@ -98,3 +98,7 @@ alt="mpc" width="320" height="220" border="10" /></a>
 The current implementation is simple and definitely has scope for improvement. Currently, the planner does a greedy search of choosing when to change lanes. If there's a slow vehicle in front, it'll look within a 30m window in the adjacent lanes. It'll choose whichever empty window it finds first. This might not necessarily be optimum. By looking ahead, one can predict the average lane speeds and thus choose a lane which is faster even if the ego car has to wait in its current lane for some time. If the planner has all lanes available to choose from, it can then default to the middle lane so that it maximizes its options in the future for changing lanes. By defining multiple objectives and thus cost functions, the task would then be choosing which cost functions best describes the goal of the planner and tuning the weights of the individual cost functions such that the planner works well in various scenarios.
 
 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=751o3kCqDd0
+" target="_blank"><img src="http://img.youtube.com/vi/751o3kCqDd0/0.jpg" 
+alt="mpc" width="320" height="220" border="10" /></a>
+The above video shows where a greedy approach fails. The car changes lanes to the first empty window it finds and gets stuck behind three slow cars for a long time. Planning for a longer time horizon by taking into account the average speed of the other cars might allow one to wait for an optimum window to open up to change lanes.
