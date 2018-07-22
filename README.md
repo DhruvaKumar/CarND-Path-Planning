@@ -101,4 +101,5 @@ The current implementation is simple and definitely has scope for improvement. C
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=751o3kCqDd0
 " target="_blank"><img src="http://img.youtube.com/vi/751o3kCqDd0/0.jpg" 
 alt="mpc" width="320" height="220" border="10" /></a>
+
 The above video shows where a greedy approach fails. The car changes lanes to the first empty window it finds and gets stuck behind three slow cars for a long time. Planning for a longer time horizon by taking into account the average speed of the other cars might allow one to wait for an optimum window to open up to change lanes.
